@@ -165,9 +165,19 @@ class SagePlugin implements Plugin<Project> {
 			def dep = new SageDependency(type: 'Core', minVersion: minVersion, maxVersion: maxVersion)
 			addUniqueDep(dep)
 		}
-		
+
 		/**
 		 * Add a JVM dependency for this plugin
+		 * <p>
+		 * If not called, the sourceCompatibility value from the project is used, but
+		 * if called, this call will replace the sourceCompatibility setting.  If you
+		 * are writing Java/Groovy code for your plugin, it would be best not to call this
+		 * and just let the setting get picked up from the project.
+		 * </p>
+		 * <p>
+		 * Really, this is only around for use by devs who might use gradle and this
+		 * plugin to package up non-Java based plugins (like STV, logo, etc. plugins).
+		 * </p>
 		 * @param minVersion The min version of Java required for this plugin (1.5, 1.6, 1.7, 1.8, etc)
 		 * @param maxVersion The max version of Java required for this plugin; optional; use sparingly, if ever
 		 */
@@ -362,6 +372,12 @@ class SagePlugin implements Plugin<Project> {
 							MinVersion(dep.minVersion)
 						if(dep.maxVersion)
 							MaxVersion(dep.maxVersion)						
+					}
+				}
+				if(proj.sourceCompatibility && !input.dependencies.find { it.type.toLowerCase() == 'jvm' }) {
+					Dependency {
+						JVM()
+						MinVersion(proj.sourceCompatibility)
 					}
 				}
 				Jars {
