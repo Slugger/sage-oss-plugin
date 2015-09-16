@@ -48,6 +48,7 @@ dependencies {
 	compile 'org.codehaus.groovy.modules.http-builder:http-builder:0.7.2'
 	
 	testCompile('org.spockframework:spock-core:1.0-groovy-2.3') { transitive = false }
+	testRuntime 'cglib:cglib:2.2.2'
 }
 
 pluginBundle {

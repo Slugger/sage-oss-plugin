@@ -18,6 +18,7 @@ package sagex.tools.gradle.plugins.sagetv
 import org.gradle.api.Project
 
 import sagex.tools.gradle.plugins.sagetv.SagePlugin.SageManifestExtension
+import sagex.tools.gradle.plugins.sagetv.exceptions.InvalidManifestException
 import spock.lang.Specification
 import spock.lang.Unroll
 
@@ -36,5 +37,29 @@ class SagePluginTests extends Specification {
 			manifest."$field" != null
 		where:
 			field << ['identifier', 'description', 'version', 'modified']
+	}
+	
+	@Unroll
+	def 'Invalid identifier "#value" is caught'() {
+		expect:
+			!new SagePlugin().isIdentifierValid(value)
+		where:
+			value << ['-abc-fjsd392', '#', 'abc-@', '@!$#$', 'abc_123']
+	}
+	
+	@Unroll
+	def 'Invalid version "#value" is caught'() {
+		expect:
+			!new SagePlugin().isVersionValid(value)
+		where:
+			value << ['.0.2.0', '.', '.1', '-1.0', '-1', '0.', '300.0.', '-6', '3-0', '3,0.0']
+	}
+	
+	@Unroll
+	def 'Invalid date "#value" is caught'() {
+		expect:
+			!new SagePlugin().isDateValid(value)
+		where:
+			value << ['-2014-12.05', '2014.12-05', '2015 6 9', '2015-9-17', '2000-15-01', '1855.06.52']
 	}
 }

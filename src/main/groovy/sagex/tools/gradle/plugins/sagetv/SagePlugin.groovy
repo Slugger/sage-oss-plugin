@@ -424,6 +424,34 @@ class SagePlugin implements Plugin<Project> {
 		}
 	}
 	
+	private boolean isIdentifierValid(String input) {
+		!input.startsWith('-') && input ==~ /[-a-zA-Z0-9]+/
+	}
+	
+	private boolean isVersionValid(String input) {
+		input ==~ /\d+(?:\.\d+)*/
+	}
+	
+	private boolean isPluginTypeValid(String input) {
+		input ==~ /Standard|STVI?|Theme|Images|Library/
+	}
+		
+	private boolean isDateValid(input) {
+		input ==~ /\d{4}([.-])\d{2}\1\d{2}/		
+	}
+
+	private boolean isCreatedValid(String input) {
+		!input || isDateValid(input)
+	}
+
+	private boolean isModifiedValid(String input) {
+		!input || isDateValid(input)
+	}
+	
+	private boolean isOsValid(String input) {
+		!input || input ==~ /Windows|Linux|Macintosh/
+	}
+	
 	private void validate(SageManifestExtension input) {
 		def missing = []
 		def invalid = []
@@ -442,19 +470,19 @@ class SagePlugin implements Plugin<Project> {
 		if(missing)
 			throw new InvalidManifestException("Your sageManifest is missing required values: $missing")
 			
-		if(input.identifier.startsWith('-') || !(input.identifier ==~ /[-a-zA-Z0-9]+/))
+		if(!isIdentifierValid(input.identifier))
 			invalid << 'identifier'
-		if(!(input.version ==~ /\d+(?:\.\d+)*/))
+		if(!isVersionValid(input.version))
 			invalid << 'version'
-		if(!(input.pluginType ==~ /Standard|STVI?|Theme|Images|Library/))
+		if(!isPluginTypeValid(input.pluginType))
 			invalid << 'pluginType'
-		if(input.created && !(input.created ==~ /\d{4}[.-]\d{2}[.-]\d{2}/))
+		if(!isCreatedValid(input.created))
 			invalid << 'created'
-		if(input.modified && !(input.modified ==~ /\d{4}[.-]\d{2}[.-]\d{2}/))
+		if(!isModifiedValid(input.modified))
 			invalid << 'modified'
 		if(input.isDesktopRequired && input.isServerOnly)
-			invalid << 'isDektopOnly & isServerOnly both can\'t be null'
-		if(input.os && !(input.os ==~ /Windows|Linux|Macintosh/))
+			invalid << 'isDektopOnly & isServerOnly both can\'t be true'
+		if(!isOsValid(input.os))
 			invalid << 'os'
 		if(invalid)
 			throw new InvalidManifestException("Your sageManifest contains invalid values: $invalid")
