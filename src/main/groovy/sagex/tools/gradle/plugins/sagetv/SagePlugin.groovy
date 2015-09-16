@@ -274,11 +274,46 @@ class SagePlugin implements Plugin<Project> {
 		String username
 		String type
 	}
+
+	private void mkSrcDirs(Project project) {
+		def srcDirs = []
+		if(project.plugins.hasPlugin('groovy'))
+			srcDirs = ['src/main/groovy', 'src/main/java']
+		else if(project.plugins.hasPlugin('java'))
+			srcDirs = ['src/main/java']
+		srcDirs.each {
+			def d = new File(project.projectDir, it)
+			if(!d.exists() && !d.mkdirs())
+				throw new RuntimeException("Unable to create source dir: $d")
+		}
+	}	
 	
 	@Override
 	void apply(Project proj) {
 		proj.extensions.create('sageManifest', SageManifestExtension)
 		proj.extensions.create('sagePluginDetails', SagePluginDetailsExtension)
+		
+		proj.task('init') {
+			if(project.plugins.hasPlugin('eclipse')) {
+				proj.eclipse {
+					doFirst {
+						mkSrcDirs(proj)
+					}
+				}
+				dependsOn 'cleanEclipse', 'eclipse'
+			} else if(project.plugins.hasPlugin('idea')) {
+				proj.idea {
+					doFirst {
+						mkSrcDirs(proj)
+					}
+				}
+				dependsOn 'cleanIdea', 'idea'
+			} else {
+				doFirst {
+					mkSrcDirs(proj)
+				}
+			}
+		}
 		
 		proj.task('manifest') {
 			inputs.files { proj.configurations.runtime }
