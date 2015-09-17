@@ -275,16 +275,51 @@ class SagePlugin implements Plugin<Project> {
 		String type
 	}
 
+	private File dumpResourceStream(InputStream is) {
+		if(is) {
+			def f = File.createTempFile('sage-oss-plugin-', '.zip')
+			f.deleteOnExit()
+			f << is
+			try { is.close() } catch(IOException e) {}
+			f
+		} else
+			null
+	}
+	
 	private void mkSrcDirs(Project project) {
+		def extractSample = true
 		def srcDirs = []
 		if(project.plugins.hasPlugin('groovy'))
 			srcDirs = ['src/main/groovy', 'src/main/java']
 		else if(project.plugins.hasPlugin('java'))
 			srcDirs = ['src/main/java']
+		else
+			extractSample = false
+			
 		srcDirs.each {
 			def d = new File(project.projectDir, it)
-			if(!d.exists() && !d.mkdirs())
+			def exists = d.exists()
+			if(!exists && !d.mkdirs())
 				throw new RuntimeException("Unable to create source dir: $d")
+			else if(exists)
+				extractSample = false
+		}
+		
+		if(extractSample) {
+			if(project.plugins.hasPlugin('groovy')) {
+				def f = dumpResourceStream(SagePlugin.getResourceAsStream('/META-INF/samples/groovy/sample.zip'))
+				if(f && f.file)
+					project.ant.unzip(src: f, dest: new File(project.projectDir, 'src/main/groovy'))
+				else
+					project.logger.error 'Failed to extract java sample zip from jar!'
+			} else if(project.plugins.hasPlugin('java')) {
+				def f = dumpResourceStream(SagePlugin.getResourceAsStream('/META-INF/samples/java/sample.zip'))
+				if(f && f.file)
+					project.ant.unzip(src: f, dest: new File(project.projectDir, 'src/main/java'))
+				else
+					project.logger.error 'Failed to extract java sample zip from jar!'
+			} else
+				project.logger.warn 'Add the java or groovy plugin to your build.gradle and rerun sageInit to have sample plugin installed in your project.'
 		}
 	}	
 	
@@ -293,40 +328,51 @@ class SagePlugin implements Plugin<Project> {
 		proj.extensions.create('sageManifest', SageManifestExtension)
 		proj.extensions.create('sagePluginDetails', SagePluginDetailsExtension)
 		
-		proj.task('init') {
-			if(project.plugins.hasPlugin('eclipse')) {
-				proj.eclipse {
-					doFirst {
-						mkSrcDirs(proj)
-					}
-				}
-				dependsOn 'cleanEclipse', 'eclipse'
-			} else if(project.plugins.hasPlugin('idea')) {
-				proj.idea {
-					doFirst {
-						mkSrcDirs(proj)
-					}
-				}
-				dependsOn 'cleanIdea', 'idea'
-			} else {
+		boolean doMkSrcDirs = false
+		boolean depOnEclipse = false
+		boolean depOnIdea = false
+		if(proj.plugins.hasPlugin('eclipse')) {
+			proj.tasks.findByPath('eclipseClasspath').with {
 				doFirst {
 					mkSrcDirs(proj)
 				}
 			}
+			depOnEclipse = true
+		} else if(proj.plugins.hasPlugin('idea')) {
+			proj.tasks.findByPath('ideaModule').with {
+				doFirst {
+					mkSrcDirs(proj)
+				}
+			}
+			depOnIdea = true
+		} else
+			doMkSrcDirs = true
+		
+		proj.task('sageInit') {
+			if(doMkSrcDirs) {
+				proj.logger.warn 'Add the eclipse or idea plugin to your build.gradle and rerun sageInit to have your IDE project configured.'
+				doFirst {
+					mkSrcDirs(proj)
+				}
+			} else if(depOnEclipse)
+				dependsOn 'cleanEclipse', 'eclipse'
+			else if(depOnIdea)
+				dependsOn 'cleanIdea', 'idea'
 		}
 		
-		proj.task('manifest') {
+		proj.task('mkSageManifest') {
 			inputs.files { proj.configurations.runtime }
 			outputs.file new File(proj.buildDir, 'sage-manifest/plugin.xml')
 			doLast {
 				setDefaults(proj, proj.sageManifest)
 				validate(proj.sageManifest)
 				mkManifest(proj, proj.sageManifest, it.outputs.files.singleFile)
+				proj.logger.info "Manifest created: $it.outputs.files.singleFile"
 			}
 		}
 		
-		proj.task('submit') {
-			inputs.files proj.manifest
+		proj.task('sageSubmit') {
+			inputs.files proj.mkSageManifest
 			doLast {
 				submit(proj.sageManifest, proj.sagePluginDetails, it.inputs.files.singleFile)
 			}

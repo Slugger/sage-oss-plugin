@@ -42,6 +42,26 @@ versioning {
 group = 'sagex.sagetv-oss'
 version = versioning.info.display
 
+task mkJavaSample(type: Zip) {
+	archiveName = 'sample.zip'
+	destinationDir = new File(project.projectDir, 'src/main/resources/META-INF/samples/java')
+	from(new File('samples/java/.'))
+}
+
+task mkGroovySample(type: Zip) {
+	archiveName = 'sample.zip'
+	destinationDir = new File(project.projectDir, 'src/main/resources/META-INF/samples/groovy')
+	from(new File('samples/groovy/.'))
+}
+
+task mkSamples {
+	dependsOn mkJavaSample, mkGroovySample
+}
+
+processResources {
+	dependsOn mkSamples
+}
+
 dependencies {
 	compile gradleApi()
 	compile localGroovy()
