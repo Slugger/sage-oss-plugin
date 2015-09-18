@@ -563,7 +563,7 @@ class SagePlugin implements Plugin<Project> {
 			invalid << 'modified'
 		if(input.isDesktopRequired && input.isServerOnly)
 			invalid << 'isDektopOnly & isServerOnly both can\'t be true'
-		if(!isOsValid(input.os))
+		if(!input.os.every { isOsValid(it) })
 			invalid << 'os'
 		if(invalid)
 			throw new InvalidManifestException("Your sageManifest contains invalid values: $invalid")
