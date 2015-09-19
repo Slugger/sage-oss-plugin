@@ -23,6 +23,7 @@ import groovyx.net.http.Method
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.UnknownConfigurationException
 
 import sagex.tools.gradle.plugins.sagetv.exceptions.InvalidManifestException
 
@@ -331,6 +332,15 @@ class SagePlugin implements Plugin<Project> {
 		boolean doMkSrcDirs = false
 		boolean depOnEclipse = false
 		boolean depOnIdea = false
+
+		proj.repositories {
+			mavenCentral()
+			jcenter()
+			maven { // This will change to the 'official' Sage maven repo eventually
+					url 'http://dl.bintray.com/slugger/sage-oss-plugins'
+			}
+		}
+		
 		if(proj.plugins.hasPlugin('eclipse')) {
 			proj.tasks.findByPath('eclipseClasspath').with {
 				doFirst {
@@ -461,10 +471,17 @@ class SagePlugin implements Plugin<Project> {
 						MinVersion(proj.sourceCompatibility)
 					}
 				}
-				Jars {
-					proj.configurations.runtime.allDependencies.findAll { it.group != 'sagetv' }.each { dep ->
-						Jar("$dep.group:$dep.name:$dep.version")
+				try {
+					proj.configurations.runtime // make sure it exists first
+					Jars {
+						proj.configurations.runtime.allDependencies.findAll { it.group != 'sagetv' }.each { dep ->
+							Jar("$dep.group:$dep.name:$dep.version")
+						}
+						// Don't forget to depend on yourself!
+						Jar("$proj.group:$proj.name:$proj.version")
 					}
+				} catch(UnknownConfigurationException e) {
+					// that's ok, just skip it
 				}
 				input.packages.each { pkg ->
 					Package {
