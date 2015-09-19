@@ -1,0 +1,140 @@
+/*
+ *      Copyright 2015 Battams, Derek
+ *
+ *       Licensed under the Apache License, Version 2.0 (the "License");
+ *       you may not use this file except in compliance with the License.
+ *       You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *       Unless required by applicable law or agreed to in writing, software
+ *       distributed under the License is distributed on an "AS IS" BASIS,
+ *       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *       See the License for the specific language governing permissions and
+ *       limitations under the License.
+ */
+
+/*
+	This is a basic, bare bones gradle file to create a skeleton SageTV OSS plugin
+	project.  It does not include any mechanisms for uploading the plugin automatically
+	but you can add that yourself or look at the "sample-complete" example.
+	
+	With this file (or the complete sample), run:
+	
+	gradle sageInit jar mkSageManifest
+	
+	The above command will:
+	
+	* Create the skeleton sample SageTV project
+	* If you've included the java plugin, it will install the sample Java plugin code
+	* If you've included the groovy plugin, it will install the sample Groovy code instead
+	* If you've included the eclipse or idea plugins, it will create the IDE project files
+	* It will compile the sample project and create the jar file
+	* It will create your SageTV plugin manifest
+	
+	Again, this basic sample is stripped of all the maven & bintray example code for
+	uploading so the manifest that is created won't be valid (unless you upload
+	manually to a bintray maven repo).
+	
+	The project name, etc. referenced in this file already exists at bintray so you
+	wouldn't be able to submit this the repo anyways.  It's provided as a reference.
+	
+	Comments, etc. are stripped out as well.  See the complete sample for more details.
+*/
+
+// TODO: Remove this when a version of this plugin is actually published to gradle repo
+buildscript {
+	repositories {
+		flatDir {
+			dirs '/home/derek/git/sage-oss-plugin/build/libs'
+		}
+	}
+	
+	dependencies {
+		classpath ':sage-oss-plugin'
+	}
+}
+
+plugins {
+//	id 'sagex.sagetv-oss' version '1.0.0'
+	id 'java'
+	id 'eclipse'
+}
+apply plugin: 'sagex.sagetv-oss'
+
+group = 'sagex.oss.plugins.samples'
+version = '0.1.0'
+sourceCompatibility = '1.7'
+
+project.ext.resourcePath = 'plugins/sage-oss-sample' // needed here to avoid circular reference
+
+dependencies { // Anything from group 'sage' will not be included in generated manifest
+	compile 'sage:sagetv-core:9.0.0.0'
+	/*
+	 * By default, dependencies will include their transitive dependencies when
+	 * processed by SageTV.  You can suppress inclusion of these transitive deps
+	 * by setting the transitive property to false
+	 * 
+	 * compile('some.package:foo:1.0') { transitive = false }
+	 */
+}
+
+/* Package up my Sage plugin packages -- NEVER jars */
+
+/*
+ *  So this is a fake zip of useless stuff, but a real plugin would zip up
+ *  config files, graphics, STVs, or whatever else your plugin needs to operate.
+ *  The only thing you don't ever put in these packages are jar files to be included
+ *  in the SageTV classpath
+ *
+ *  Don't forget to add this to your artifacts for upload to bintray!
+ */
+
+task mkZipSrc {
+	def src = new File(project.buildDir, project.resourcePath)
+	outputs.dir src.parentFile
+	doLast {
+		src.mkdirs()
+		new File(src, 'foo.txt') << 'foobar'
+	}
+}
+ 
+task mkPkgs(type: Zip) {
+	classifier = 'conf'
+	from mkZipSrc
+	baseName = project.name
+	destinationDir = new File(project.buildDir, 'zips')
+}
+
+/*
+	Your Sage plugin XML manifest will be built based on the contents below.
+	Some contents are auto generated based on the other parts of this build file.
+*/	
+sageManifest {
+	name = 'SageTV OSS Sample Plugin'
+	//identifier = 'sage-oss-sample' // optional else project.name
+	author = 'Slugger'
+	created = '2015.09.19'
+	isBeta = true
+	resourcePath = project.resourcePath
+	webPage 'https://github.com/Slugger/sage-oss-sample/'
+	isServerOnly = true
+	pluginType = 'Standard'
+	implementationClass = 'sagex.oss.plugins.samples.SamplePlugin'
+	description = '''A sample SageTV plugin that really doesn't do anything useful, but
+	is a complete working example that can be installed on your SageTV server.'''
+	core '9.0.0.0' // You must specify a core dependency, if you require it
+	/*
+		The files referred to below must exist when this block executes in order to
+		compute the md5 values.  If the files don't exist, the build will fail.
+		Setup your task dependencies accordingly.
+	*/
+	project.files(mkPkgs).files.each {
+		pkg type: 'System', location: new URL("https://dl.bintray.com/slugger/sage-oss-plugins/${project.group.replaceAll('\\.', '/')}/$project.name/$project.version/$it.name"), file: it
+	}
+	releaseNotes = '''Initial release.'''
+}
+
+mkSageManifest {
+	dependsOn mkPkgs // Make sure your packages are built before trying to generate manifest
+}

@@ -474,7 +474,7 @@ class SagePlugin implements Plugin<Project> {
 				try {
 					proj.configurations.runtime // make sure it exists first
 					Jars {
-						proj.configurations.runtime.allDependencies.findAll { it.group != 'sagetv' }.each { dep ->
+						proj.configurations.runtime.allDependencies.findAll { it.group != 'sage' }.each { dep ->
 							Jar("$dep.group:$dep.name:$dep.version")
 						}
 						// Don't forget to depend on yourself!

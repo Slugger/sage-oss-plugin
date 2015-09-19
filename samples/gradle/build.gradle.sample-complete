@@ -1,0 +1,188 @@
+/*
+ *      Copyright 2015 Battams, Derek
+ *
+ *       Licensed under the Apache License, Version 2.0 (the "License");
+ *       you may not use this file except in compliance with the License.
+ *       You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *       Unless required by applicable law or agreed to in writing, software
+ *       distributed under the License is distributed on an "AS IS" BASIS,
+ *       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *       See the License for the specific language governing permissions and
+ *       limitations under the License.
+ */
+ 
+// TODO: Remove this when a version of this plugin is actually published to gradle repo
+buildscript {
+	repositories {
+		flatDir {
+			dirs '/home/derek/git/sage-oss-plugin/build/libs'
+		}
+	}
+	
+	dependencies {
+		classpath ':sage-oss-plugin'
+	}
+}
+
+plugins {
+//	id 'sagex.sagetv-oss' version '1.0.0'
+	id 'java'				// change to 'groovy' if you want to write in groovy
+	id 'eclipse'			// change to 'idea' if you're an IntelliJ user
+	id 'maven-publish'		// needed if you're publishing your plugin to a maven repo
+	id 'com.jfrog.bintray' version '1.1' // if that maven repo is at bintray, use this
+}
+apply plugin: 'sagex.sagetv-oss'
+
+group = 'sagex.oss.plugins.samples' // when publishing to maven repo, this is the group
+version = '0.1.0'
+sourceCompatibility = '1.7' // JVM dependency is set based on this value; if not set, it is set based on the JVM version used to compile
+
+project.ext.resourcePath = 'plugins/sage-oss-sample' // needed here to avoid circular reference
+
+dependencies { // Anything from group 'sage' will not be included in generated manifest
+	compile 'sage:sagetv-core:9.0.0.0'
+	/*
+	 * By default, dependencies will include their transitive dependencies when
+	 * processed by SageTV.  You can suppress inclusion of these transitive deps
+	 * by setting the transitive property to false
+	 * 
+	 * compile('some.package:foo:1.0') { transitive = false }
+	 */
+}
+
+/* Package up my Sage plugin packages -- NEVER jars */
+
+/*
+ *  So this is a fake zip of useless stuff, but a real plugin would zip up
+ *  config files, graphics, STVs, or whatever else your plugin needs to operate.
+ *  The only thing you don't ever put in these packages are jar files to be included
+ *  in the SageTV classpath
+ *
+ *  Don't forget to add this to your artifacts for upload to bintray!
+ */
+
+task mkZipSrc {
+	def src = new File(project.buildDir, project.resourcePath)
+	outputs.dir src.parentFile
+	doLast {
+		src.mkdirs()
+		new File(src, 'foo.txt') << 'foobar'
+	}
+}
+ 
+task mkPkgs(type: Zip) {
+	classifier = 'conf'
+	from mkZipSrc
+	baseName = project.name
+	destinationDir = new File(project.buildDir, 'zips')
+}
+
+/*
+	Your Sage plugin XML manifest will be built based on the contents below.
+	Some contents are auto generated based on the other parts of this build file.
+*/	
+sageManifest {
+	name = 'SageTV OSS Sample Plugin'
+	//identifier = 'sage-oss-sample' // optional else project.name
+	author = 'Slugger'
+	created = '2015.09.19'
+	isBeta = true
+	resourcePath = project.resourcePath
+	webPage 'https://github.com/Slugger/sage-oss-sample/'
+	isServerOnly = true
+	pluginType = 'Standard'
+	implementationClass = 'sagex.oss.plugins.samples.SamplePlugin'
+	description = '''A sample SageTV plugin that really doesn't do anything useful, but
+	is a complete working example that can be installed on your SageTV server.'''
+	core '9.0.0.0' // You must specify a core dependency, if you require it
+	/*
+		The files referred to below must exist when this block executes in order to
+		compute the md5 values.  If the files don't exist, the build will fail.
+		Setup your task dependencies accordingly.
+	*/
+	project.files(mkPkgs).files.each {
+		pkg type: 'System', location: new URL("https://dl.bintray.com/slugger/sage-oss-plugins/${project.group.replaceAll('\\.', '/')}/$project.name/$project.version/$it.name"), file: it
+	}
+	releaseNotes = '''Initial release.'''
+}
+
+mkSageManifest {
+	dependsOn mkPkgs // Make sure your packages are built before trying to generate manifest
+}
+
+/* Maven Publishing Tasks Below */
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+	classifier = 'sources'
+	from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	classifier = 'javadoc'
+	from javadoc.destinationDir
+}
+
+artifacts {
+	archives sourcesJar, javadocJar, mkPkgs
+}
+
+publishing {
+	publications {
+		mavenGoodies(MavenPublication) {
+			from components.java
+			artifact sourcesJar
+			artifact javadocJar
+			artifact mkPkgs
+			// Hopefully, some day this xml hack can be removed
+			pom.withXml {
+				asNode().dependencies.'*'.findAll {
+					it.scope.text() == 'runtime' && project.configurations.compile.allDependencies.find { dep ->
+						dep.name == it.artifactId.text()
+					}
+				}.each { it.scope*.value = 'compile' }
+			}
+		}
+	}
+}
+
+/* Bintray Upload Tasks */
+// You don't have to upload to bintray, but it is my recommendation
+bintray {
+	def propsFile = new File(new File(System.getProperty('user.home')), '.btcreds.properties')
+	def props
+	if(propsFile.exists())
+		propsFile.withInputStream {
+			props = new Properties()
+			props.load(it)
+		}
+	user = props?.'bintray.user'
+	key = props?.'bintray.key'
+	publications = ['mavenGoodies']
+	publish = false
+	pkg {
+		repo = 'sage-oss-plugins'
+		name = 'sage-oss-sample'
+		desc = 'A sample plugin for SageTV OSS.'
+		websiteUrl = 'https://github.com/Slugger/sage-oss-sample'
+		issueTrackerUrl = 'https://github.com/Slugger/sage-oss-sample/issues'
+		vcsUrl = 'https://github.com/Slugger/sage-oss-sample.git'
+		licenses = ['Apache-2.0']
+		labels = ['sagetv', 'oss']
+		attributes= ['plat': ['java']]
+		publicDownloadNumbers = false
+		version {
+			name = project.version
+		}
+	}
+}
+
+bintrayUpload {
+	dependsOn jar
+	doFirst {
+		if(!project.bintray.user || !project.bintray.key)
+			throw new RuntimeException('Can\'t do a bintray upload without creds!')
+	}
+}
